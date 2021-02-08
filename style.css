@@ -1,3 +1,13 @@
 body {
   margin: 0;
 }
+
+.scrubbable-grid {
+  position: relative;
+}
+
+.section {
+  position: relative;
+  background-color: blueviolet;
+  margin: 30px 0px;
+}

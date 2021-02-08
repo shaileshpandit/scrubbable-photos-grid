@@ -11,14 +11,14 @@
   <!-- import the webpage's stylesheet -->
   <link rel="stylesheet" href="/style.css">
 
-  <!-- import the webpage's javascript file -->
+  <!-- import the webpage's javascript files -->
+  <script src="/api.js" defer></script>
+  <script src="/script.js" defer></script>
 </head>
 
 <body>
-  <!-- include the Glitch button to show what the webpage is about and
-          to make it easier for folks to view source and remix -->
-  <div class="glitchButton" style="position:fixed;top:20px;right:20px;"></div>
-  <script src="https://button.glitch.me/button.js" defer></script>
+  <!-- our grid container, will have sections as child divs -->
+  <div id="grid" class="scrubbable-grid"></div>
 </body>
 
 </html>
