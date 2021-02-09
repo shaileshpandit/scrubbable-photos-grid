@@ -14,3 +14,10 @@ function getSections() {
     });
   });
 }
+
+// get all segments inside one section - e.g. one segment per day
+function getSegments(sectionId) {
+  return sectionStore.then(delay(50 + Math.random() * 500)).then(store => {
+    return store.find(section => section.sectionId == sectionId).segments
+  });
+}

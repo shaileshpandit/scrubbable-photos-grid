@@ -1,3 +1,5 @@
+var justifiedLayout = require('justified-layout');
+
 // app state - list of all sections and their image counts
 var allSections = [];
 
@@ -22,6 +24,9 @@ function loadUi() {
 function populateGrid(gridNode) {
   const sectionsHtml = allSections.map(getDetachedSectionHtml).join("\n");
   gridNode.innerHTML = sectionsHtml;
+
+  // populate each section eagerly
+  gridNode.querySelectorAll(".section").forEach(populateSection);
 }
 
 // generates detached section html, detached section has estimated height and no segments loaded
@@ -39,4 +44,29 @@ function estimateSectionHeight(section) {
   const height = rows * config.targetRowHeight;
 
   return height;
+}
+
+// populates section with actual segments html
+function populateSection(sectionDiv) {
+  getSegments(sectionDiv.id).then(segments => {
+    // adds all segments as childs of section
+    sectionDiv.innerHTML = segments.map(getSegmentHtml).join("\n");
+    sectionDiv.style.height = "100%"
+  });
+}
+
+// generates Segment html
+function getSegmentHtml(segment) {
+  const sizes = segment.images.map(image => image.metadata);
+  var geometry = justifiedLayout(sizes, config);
+
+  // gets tiles for each box given by justified layout lib
+  var tiles = geometry.boxes.map(getTileHtml).join("\n");
+
+  return `<div id="${segment.segmentId}" class="segment" style="width: ${config.containerWidth}px; height: ${geometry.containerHeight}px;">${tiles}</div>`;
+}
+
+// generates Tile html
+function getTileHtml(box) {
+  return `<div class="tile" style="width: ${box.width}px; height: ${box.height}px; left: ${box.left}px; top: ${box.top}px;"></div>`;
 }
