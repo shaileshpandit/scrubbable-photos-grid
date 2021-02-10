@@ -7,16 +7,15 @@ body {
 }
 
 .section {
-  position: relative;
+  position: absolute;
+  contain: layout;
   background-color: blueviolet;
-  padding: 20px 0px;
-  margin: 30px 0px;
 }
 
 .segment {
-  position: relative;
+  position: absolute;
+  contain: layout;
   background-color: blue;
-  margin: 20px 0px;
 }
 
 .tile {

@@ -1,15 +1,14 @@
 var justifiedLayout = require('justified-layout');
 
-// app state - list of all sections and their image counts
-var allSections = [];
-// app state - last update time of all sections
-var lastSectionUpdateTimes = {};
+// app state - list of all sections and their state
+var sectionStates = {};
 
 // grid's config - should be updated on viewport resize
 var config = {
   containerWidth: window.innerWidth,
   targetRowHeight: 150,
-  sectionPadding: 20
+  segmentsMargin: 20,
+  sectionMargin: 20
 };
 
 loadUi();
@@ -18,14 +17,25 @@ loadUi();
 // gets all sections using api, populates grid div
 function loadUi() {
   getSections().then(sections => {
-    allSections = sections;
-    populateGrid(document.getElementById("grid"));
+    populateGrid(document.getElementById("grid"), sections);
   });
 }
 
 // populates grid node with all detached sections
-function populateGrid(gridNode) {
-  const sectionsHtml = allSections.map(getDetachedSectionHtml).join("\n");
+function populateGrid(gridNode, sections) {
+  var sectionsHtml = "";
+  var prevSectionEnd = config.sectionMargin;
+  for (const section of sections) {
+    sectionStates[section.sectionId] = {
+      ...section,
+      lastUpdateTime: -1,
+      height: estimateSectionHeight(section),
+      top: prevSectionEnd
+    };
+
+    sectionsHtml += getDetachedSectionHtml(sectionStates[section.sectionId]);
+    prevSectionEnd += sectionStates[section.sectionId].height + config.sectionMargin;
+  }
   gridNode.innerHTML = sectionsHtml;
 
   // observe each section for intersection with viewport
@@ -33,8 +43,8 @@ function populateGrid(gridNode) {
 }
 
 // generates detached section html, detached section has estimated height and no segments loaded
-function getDetachedSectionHtml(section) {
-  return `<div id="${section.sectionId}" class="section" style="width: ${config.containerWidth}px; height: ${estimateSectionHeight(section)}px;"></div>`;
+function getDetachedSectionHtml(sectionState) {
+  return `<div id="${sectionState.sectionId}" class="section" style="width: ${config.containerWidth}px; height: ${sectionState.height}px; top: ${sectionState.top}px; left: 0px";"></div>`;
 }
 
 // estimates section height, taken from google photos blog
@@ -51,20 +61,49 @@ function estimateSectionHeight(section) {
 
 // populates section with actual segments html
 function populateSection(sectionDiv, segments) {
-  // adds all segments as childs of section
-  sectionDiv.innerHTML = segments.map(getSegmentHtml).join("\n");
-  sectionDiv.style.height = "100%";
+  let sectionId = sectionDiv.id;
+  let segmentsHtml = "";
+  let prevSegmentEnd = config.segmentsMargin;
+  for (const segment of segments) {
+    const segmentInfo = getSegmentHtmlAndHeight(segment, prevSegmentEnd)
+    segmentsHtml += segmentInfo.html;
+    prevSegmentEnd += segmentInfo.height + config.segmentsMargin;
+  }
+
+  // add segments to section and calculate new height
+  sectionDiv.innerHTML = segmentsHtml;
+  const newSectionHeight = prevSegmentEnd;
+  const oldSectionHeight = sectionStates[sectionId].height
+
+  // adjust all next section's top if height of this section was modified
+  const heightDelta = newSectionHeight - oldSectionHeight;
+  if (heightDelta == 0) { return }
+
+  sectionStates[sectionId].height = newSectionHeight;
+  sectionDiv.style.height = `${newSectionHeight}px`;
+
+  Object.keys(sectionStates).forEach(sectionToAdjustId => {
+    if (sectionToAdjustId >= sectionId) { return }
+
+    sectionStates[sectionToAdjustId].top += heightDelta;
+    const sectionToAdjustDiv = document.getElementById(sectionToAdjustId);
+    sectionToAdjustDiv.style.top = `${sectionStates[sectionToAdjustId].top}px`;
+  });
+
 }
 
-// generates Segment html
-function getSegmentHtml(segment) {
+// generates Segment html and height
+function getSegmentHtmlAndHeight(segment, top) {
   const sizes = segment.images.map(image => image.metadata);
   var geometry = justifiedLayout(sizes, config);
 
   // gets tiles for each box given by justified layout lib
   var tiles = geometry.boxes.map(getTileHtml).join("\n");
 
-  return `<div id="${segment.segmentId}" class="segment" style="width: ${config.containerWidth}px; height: ${geometry.containerHeight}px;">${tiles}</div>`;
+  return {
+    html: `<div id="${segment.segmentId}" class="segment" style="width: ${config.containerWidth}px; height: ${geometry.containerHeight}px; top: ${top}px; left: 0px;">${tiles}</div>`,
+    height: geometry.containerHeight
+  };
 }
 
 // generates Tile html
@@ -74,9 +113,7 @@ function getTileHtml(box) {
 
 // detaches section by removing childs of section div and keeping same height
 function detachSection(sectionDiv) {
-  let oldHeight = sectionDiv.offsetHeight - config.sectionPadding * 2
   sectionDiv.innerHTML = "";
-  sectionDiv.style.height = `${oldHeight}px`;
 }
 
 const sectionObserver = new IntersectionObserver(handleSectionIntersection, {
@@ -87,11 +124,11 @@ const sectionObserver = new IntersectionObserver(handleSectionIntersection, {
 function handleSectionIntersection(entries, observer) {
   entries.forEach((entry) => {
     const sectionDiv = entry.target;
-    lastSectionUpdateTimes[sectionDiv.id] = entry.time;
+    sectionStates[sectionDiv.id].lastUpdateTime = entry.time;
 
     if (entry.isIntersecting) {
       getSegments(sectionDiv.id).then(segments => {
-        if (lastSectionUpdateTimes[sectionDiv.id] !== entry.time) {
+        if (sectionStates[sectionDiv.id].lastUpdateTime !== entry.time) {
           console.log("new updates received on section, discarding update for", sectionDiv.id, entry.time);
           return;
         }
