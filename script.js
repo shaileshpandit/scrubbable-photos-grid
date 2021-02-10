@@ -2,11 +2,14 @@ var justifiedLayout = require('justified-layout');
 
 // app state - list of all sections and their image counts
 var allSections = [];
+// app state - last update time of all sections
+var lastSectionUpdateTimes = {};
 
 // grid's config - should be updated on viewport resize
 var config = {
   containerWidth: window.innerWidth,
-  targetRowHeight: 150
+  targetRowHeight: 150,
+  sectionPadding: 20
 };
 
 loadUi();
@@ -25,8 +28,8 @@ function populateGrid(gridNode) {
   const sectionsHtml = allSections.map(getDetachedSectionHtml).join("\n");
   gridNode.innerHTML = sectionsHtml;
 
-  // populate each section eagerly
-  gridNode.querySelectorAll(".section").forEach(populateSection);
+  // observe each section for intersection with viewport
+  gridNode.querySelectorAll(".section").forEach(sectionObserver.observe.bind(sectionObserver));
 }
 
 // generates detached section html, detached section has estimated height and no segments loaded
@@ -47,12 +50,10 @@ function estimateSectionHeight(section) {
 }
 
 // populates section with actual segments html
-function populateSection(sectionDiv) {
-  getSegments(sectionDiv.id).then(segments => {
-    // adds all segments as childs of section
-    sectionDiv.innerHTML = segments.map(getSegmentHtml).join("\n");
-    sectionDiv.style.height = "100%"
-  });
+function populateSection(sectionDiv, segments) {
+  // adds all segments as childs of section
+  sectionDiv.innerHTML = segments.map(getSegmentHtml).join("\n");
+  sectionDiv.style.height = "100%";
 }
 
 // generates Segment html
@@ -69,4 +70,35 @@ function getSegmentHtml(segment) {
 // generates Tile html
 function getTileHtml(box) {
   return `<div class="tile" style="width: ${box.width}px; height: ${box.height}px; left: ${box.left}px; top: ${box.top}px;"></div>`;
+}
+
+// detaches section by removing childs of section div and keeping same height
+function detachSection(sectionDiv) {
+  let oldHeight = sectionDiv.offsetHeight - config.sectionPadding * 2
+  sectionDiv.innerHTML = "";
+  sectionDiv.style.height = `${oldHeight}px`;
+}
+
+const sectionObserver = new IntersectionObserver(handleSectionIntersection, {
+  rootMargin: "200px 0px"
+});
+
+// handle when there is change for section intersecting viewport
+function handleSectionIntersection(entries, observer) {
+  entries.forEach((entry) => {
+    const sectionDiv = entry.target;
+    lastSectionUpdateTimes[sectionDiv.id] = entry.time;
+
+    if (entry.isIntersecting) {
+      getSegments(sectionDiv.id).then(segments => {
+        if (lastSectionUpdateTimes[sectionDiv.id] !== entry.time) {
+          console.log("new updates received on section, discarding update for", sectionDiv.id, entry.time);
+          return;
+        }
+        populateSection(sectionDiv, segments);
+      });
+    } else {
+      detachSection(sectionDiv, entry.time);
+    }
+  });
 }
