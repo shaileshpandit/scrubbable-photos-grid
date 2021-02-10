@@ -18,6 +18,9 @@ loadUi();
 function loadUi() {
   getSections().then(sections => {
     populateGrid(document.getElementById("grid"), sections);
+
+    // simulating directly jumping to random scroll position
+    window.scrollTo({ top: 10000 });
   });
 }
 
@@ -90,6 +93,10 @@ function populateSection(sectionDiv, segments) {
     sectionToAdjustDiv.style.top = `${sectionStates[sectionToAdjustId].top}px`;
   });
 
+  // adjust scroll if user is scrolling upwords and we loaded some section above current scroll position
+  if (window.scrollY > sectionStates[sectionId].top) {
+    window.scrollBy(0, heightDelta);
+  }
 }
 
 // generates Segment html and height
@@ -128,14 +135,18 @@ function handleSectionIntersection(entries, observer) {
 
     if (entry.isIntersecting) {
       getSegments(sectionDiv.id).then(segments => {
-        if (sectionStates[sectionDiv.id].lastUpdateTime !== entry.time) {
-          console.log("new updates received on section, discarding update for", sectionDiv.id, entry.time);
-          return;
-        }
-        populateSection(sectionDiv, segments);
+        window.requestAnimationFrame(() => {
+          if (sectionStates[sectionDiv.id].lastUpdateTime === entry.time) {
+            populateSection(sectionDiv, segments);
+          }
+        });
       });
     } else {
-      detachSection(sectionDiv, entry.time);
+      window.requestAnimationFrame(() => {
+        if (sectionStates[sectionDiv.id].lastUpdateTime === entry.time) {
+          detachSection(sectionDiv, entry.time)
+        }
+      });
     }
   });
 }
